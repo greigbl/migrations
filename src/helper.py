@@ -1,7 +1,6 @@
 import requests
 from requests import Response
 import os
-import json
 import pandas as pd
 import time
 import datarobot as dr
