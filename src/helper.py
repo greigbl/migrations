@@ -2,7 +2,6 @@ import requests
 from requests import Response
 import os
 import pandas as pd
-import time
 import datarobot as dr
 from glob import glob
 import re
