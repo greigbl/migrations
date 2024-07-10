@@ -20,8 +20,8 @@ def _call_http(url: str, apikey: str, method: str = "GET", **kwargs) -> Response
             method=method, url=url, headers=headers, json=kwargs["data"]
         )
     elif (
-        "headers" in kwargs and 
-        "Content-Type" in kwargs["headers"] 
+        "headers" in kwargs
+        and "Content-Type" in kwargs["headers"]
         and kwargs["headers"]["Content-Type"] == "multipart/form-data"
     ):
         response = requests.request(
@@ -52,25 +52,25 @@ def _import(path: str, method: str = "GET", admin: bool = False, **kwargs) -> Re
 def _convert_to_snake(dict_in):
     def replace(item):
         return re.sub(r"(?<!^)(?=[A-Z])", "_", item).lower()
-    
+
     return {replace(k): v for (k, v) in dict_in.items()}
 
 
-def _download_dataset(catalog_id:str, fileName:str, DIR:str) -> dict[str, Any]:
+def _download_dataset(catalog_id: str, fileName: str, DIR: str) -> dict[str, Any]:
     url = f"{os.environ.get('SOURCE_ENDPOINT')}/datasets/{catalog_id}/file/"
     headers = {"Authorization": f"Bearer {os.environ.get('SOURCE_API_TOKEN')}"}
     complete = False
     with requests.get(url, headers=headers, stream=True) as response:
         if response.headers["Content-Type"] == "text/csv; charset=utf-8":
-            with open(f"{DIR}/{fileName}.csv", "wb") as f:
+            with open(f"{DIR}/{fileName}", "wb") as f:
                 for chunk in response.iter_content(chunk_size=8192):
                     f.write(chunk)
                 complete = True
-    return {"catalogId": catalog_id, "name": f"{fileName}.csv", "complete": complete}
+    return {"catalogId": catalog_id, "name": f"{fileName}", "complete": complete}
 
 
 def download_datasets(
-    catalog_items:pd.DataFrame, DIR:str, MIGRATION_THREADS:int
+    catalog_items: pd.DataFrame, DIR: str, MIGRATION_THREADS: int
 ) -> list[str]:
     with ThreadPoolExecutor(max_workers=MIGRATION_THREADS) as executor:
         futurejobs = []
@@ -78,7 +78,7 @@ def download_datasets(
             item = item[1].to_dict()
             futurejobs.append(
                 executor.submit(
-                    _download_dataset, item["catalogId"], item["fileName"], DIR
+                    _download_dataset, item["catalogId"], item["name"], DIR
                 )
             )
         complete = [j.result() for j in as_completed(futurejobs)]
@@ -91,48 +91,42 @@ def download_datasets(
         return complete
 
 
-def upload_dataset(catalog_item, DIR:str):
+def upload_dataset(catalog_item, DIR: str):
     return _import(
         "datasets/fromFile/",
-        "POST", 
-        headers={"Content-Type": "multipart/form-data"}, 
+        "POST",
+        headers={"Content-Type": "multipart/form-data"},
         files=[
             (
                 "file",
                 (
                     f"{catalog_item['name']}.csv",
-                    open(f"{DIR}/{catalog_item['name']}"), 
+                    open(f"{DIR}/{catalog_item['name']}"),
                     "text/csv",
                 ),
             )
         ],
-        payload={"categories": "TRAINING"}
+        payload={"categories": "TRAINING"},
     )
 
 
 def dataset_metadata(catalog):
     all_recs = []
     for c in catalog:
-        deets = _export(f"datasets/{c['catalogId']}/versions/?orderBy=created")
-        data = deets["data"][0]
-        all_recs.append(
-            {
-                "catalogId": c["catalogId"],
-                "name": data["name"],
-                "datasetSize(MB)": int(data["datasetSize"] / 1_000_000),
-                "rowCount": data["rowCount"],
-                "categories": data["categories"],
-            }
-        )
+        if "catalogId" in c:
+            deets = _export(f"datasets/{c['catalogId']}/versions/?orderBy=created")
+            data = deets["data"][0]
+            all_recs.append(
+                {
+                    "catalogId": c["catalogId"],
+                    "name": data["name"],
+                    "datasetSize(MB)": int(data["datasetSize"] / 1_000_000),
+                    "rowCount": data["rowCount"],
+                    "categories": data["categories"],
+                }
+            )
     return pd.DataFrame(all_recs)
 
-
-def get_datasets(allprojects):
-    return [
-        {"fileName": i["fileName"].split(".")[0] + ".csv", "catalogId": i["catalogId"]}
-        for i in allprojects
-        if i["catalogId"] is not None
-    ]
 
 
 def export_projects() -> list[dict[str, Any]]:
@@ -162,7 +156,11 @@ def export_users() -> pd.DataFrame:
         if "message" in users:
             print("Message: ", users["message"])
         else:
-            user_list = [user for user in users["data"] if user["activated"] and user["username"] != current_user]
+            user_list = [
+                user
+                for user in users["data"]
+                if user["activated"] and user["username"] != current_user
+            ]
             allusers.extend(user_list)
         url = users.get("next", None)
         if url is not None:
@@ -180,7 +178,7 @@ def migrate_item(catalog_id, filename):
     new_project = _initiate_project(new_catalogid)
 
 
-def import_users(DIR:str, USER_EXPORT_FILE:str, PASSWORD:str) -> dict[str,Any]:
+def import_users(DIR: str, USER_EXPORT_FILE: str, PASSWORD: str) -> dict[str, Any]:
     orgid = os.environ.get("TARGET_ORG_ID")
     # Read user list => iterate
     # with open(f"{DIR}/user-export.json") as f:
@@ -212,13 +210,14 @@ def import_users(DIR:str, USER_EXPORT_FILE:str, PASSWORD:str) -> dict[str,Any]:
                 admin=True,
                 data={"maxWorkers": user["maxWorkers"]},
             )
-            new_user = new_user | {"workersSet":True}
+            new_user = new_user | {"workersSet": True}
         except Exception as e:
             print("User creation did not complete fully", user["username"])
         imported_users.append(new_user)
     return imported_users
 
-def import_projects(DIR:str, USER_EXPORT_FILE:str):
+
+def import_projects(DIR: str, USER_EXPORT_FILE: str):
     # 1. Import datasets
     files = glob("data/*.csv")
     print("Found ", len(files), " files")
