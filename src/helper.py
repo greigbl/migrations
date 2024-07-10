@@ -77,9 +77,7 @@ def download_datasets(
         for item in catalog_items.iterrows():
             item = item[1].to_dict()
             futurejobs.append(
-                executor.submit(
-                    _download_dataset, item["catalogId"], item["name"], DIR
-                )
+                executor.submit(_download_dataset, item["catalogId"], item["name"], DIR)
             )
         complete = [j.result() for j in as_completed(futurejobs)]
         result = (
@@ -126,7 +124,6 @@ def dataset_metadata(catalog):
                 }
             )
     return pd.DataFrame(all_recs)
-
 
 
 def export_projects() -> list[dict[str, Any]]:
