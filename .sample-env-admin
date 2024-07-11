@@ -1,0 +1,9 @@
+#Required in real migration
+SOURCE_ENDPOINT=https://app.datarobot.com/api/v2
+SOURCE_API_TOKEN=NjxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxQxxxxxxxxxxx9
+SOURCE_ORG_ID=6662bxxxxxxxxxxxxfaxx1f
+TARGET_ORG_ID=667a8xxxxxxxxxxxx073xx3
+
+#ONLY REQUIRED for local testing
+DATAROBOT_ENDPOINT=https://new.datarobot.com/api/v2
+DATAROBOT_API_TOKEN=NxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxLL1Bxxxxxxxx89
