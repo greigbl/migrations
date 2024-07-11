@@ -20,9 +20,7 @@ def _call_http(url: str, apikey: str, method: str = "GET", **kwargs) -> Response
             method=method, url=url, headers=headers, json=kwargs["data"]
         )
     elif (
-        "headers" in kwargs
-        and "Content-Type" in kwargs["headers"]
-        and kwargs["headers"]["Content-Type"] == "multipart/form-data"
+        "files" in kwargs
     ):
         response = requests.request(
             "POST", url, headers=headers, data=kwargs["payload"], files=kwargs["files"]
@@ -37,9 +35,13 @@ def _current_user():
     return _export("account/info/")
 
 
-def _export(path: str, method: str = "GET", admin: bool = False, **kwargs) -> Response:
-    url = f"{os.environ.get('SOURCE_ENDPOINT')}/{path}"
-    return _call_http(url, os.environ.get("SOURCE_API_TOKEN"), **kwargs)
+def _export(path: str, env: str = "SOURCE", method: str = "GET", **kwargs) -> Response:
+    if env == "TARGET":
+        url = f"{os.environ.get('DATAROBOT_ENDPOINT')}/{path}"
+        return _call_http(url, os.environ.get("DATAROBOT_API_TOKEN"), **kwargs)
+    else:
+        url = f"{os.environ.get('SOURCE_ENDPOINT')}/{path}"
+        return _call_http(url, os.environ.get("SOURCE_API_TOKEN"), **kwargs)
 
 
 def _import(path: str, method: str = "GET", admin: bool = False, **kwargs) -> Response:
@@ -93,17 +95,18 @@ def upload_dataset(catalog_item, DIR: str):
     return _import(
         "datasets/fromFile/",
         "POST",
-        headers={"Content-Type": "multipart/form-data"},
+        # headers={"Content-Type": "multipart/form-data"},
         files=[
             (
                 "file",
                 (
-                    f"{catalog_item['name']}.csv",
+                    f"{catalog_item['name']}",
                     open(f"{DIR}/{catalog_item['name']}"),
                     "text/csv",
                 ),
             )
         ],
+        #TODO: Set this dynamically
         payload={"categories": "TRAINING"},
     )
 
@@ -112,7 +115,7 @@ def dataset_metadata(catalog):
     all_recs = []
     for c in catalog:
         if "catalogId" in c:
-            deets = _export(f"datasets/{c['catalogId']}/versions/?orderBy=created")
+            deets = _export(f"datasets/{c['catalogId']}/versions/?orderBy=created",env="TARGET")
             data = deets["data"][0]
             all_recs.append(
                 {
@@ -214,98 +217,4 @@ def import_users(DIR: str, USER_EXPORT_FILE: str, PASSWORD: str) -> dict[str, An
     return imported_users
 
 
-def import_projects(DIR: str, USER_EXPORT_FILE: str):
-    # 1. Import datasets
-    files = glob("data/*.csv")
-    print("Found ", len(files), " files")
-    file_dict = {}
-    for f in files[0:2]:
-        print("Importing projects")
-        if f == USER_EXPORT_FILE:
-            continue
-        file = "".join(f.split(".")[:-1]).split(f"{DIR}/")[1] + ".csv"
-        # 1. Check dataset does NOT exist (cheap idempotency)
-        # TODO: The partial matching will cause problems
-        files = _call_http(
-            f"{os.environ.get('DATAROBOT_ENDPOINT')}/catalogItems/?limit=1&searchFor={file}",
-            os.environ.get("DATAROBOT_API_TOKEN"),
-            "POST",
-        )
 
-        if len(files) > 0:
-            print("Dataset already exits.. skipping")
-            print("Data: ", files)
-            file_dict[file] = {k: v for (k, v) in files["data"] if f == f"{file}.csv"}
-            continue
-        # 2. Create dataset
-        file_dict[file] = dr.Dataset.create_from_file(f)
-    print("Files: ", file_dict)
-    # 2. Process of the options
-    herefornow = {
-        "target": "販売数量",
-        "target_type": "Regression",
-    }
-    adv_options = {}
-    partition_options = {}
-    # 3. Create project
-    # project = dr.Project.create_from_dataset(dataset_id="667e2bdfe1201743794d30ad")
-    # #4. Update the project
-    # project.set_options(**adv_options)
-    # project.set_partitioning_method(**partition_options)
-    # # project.set_target(**options)
-    # #5. Run modelling
-    # project.analyze_and_model(**herefornow)
-
-    options = {
-        "positive_class": None,
-        # "max_train_pct": 74.178465,
-        "max_train_rows": 252706,
-        # "holdout_unlocked": False,
-        # "project_name": "商品の売上_学習",
-        "unsupervised_mode": False,
-        "use_feature_discovery": False,
-        "segmentation": None,
-        # ???
-        # "catalog_id": "667e268f9cdebc97bd581ba3",
-        "external_time_series_baseline_dataset_metadata": None,
-        "is_scoring_available_for_models_trained_into_validation_holdout": False,
-        "unsupervised_type": None,
-        "query_generator_id": None,
-        "use_gpu": False,
-    }
-
-    # partition_options = {
-    #     "cv_method": "random",
-    #     "validation_type": "CV",
-    #     "holdout_pct": 19.999824,
-    #     "reps": 5,
-    #     "validation_level": None,
-    #     "cv_holdout_level": None,
-    #     "user_partition_col": None,
-    #     "validation_pct": None,
-    #     "training_level": None,
-    #     "partition_key_cols": None,
-    #     "holdout_level": None,
-    #     # "datetime_col": None,
-    #     # "use_time_series": None,
-    # }
-
-    # adv_options = {
-    #     "blueprint_threshold": 3,
-    #     "shap_only_mode": False,
-    #     "response_cap": False,
-    #     "blend_best_models": False,
-    #     "smart_downsampled": False,
-    #     "weights": None,
-    #     "seed": None,
-    #     "majority_downsampling_rate": None,
-    #     "run_leakage_removed_feature_list": True,
-    #     "prepare_model_for_deployment": True,
-    #     "only_include_monotonic_blueprints": False,
-    #     "consider_blenders_in_recommendation": False,
-    # }
-
-    print("Project: ", f"https://staging.datarobot.com/projects/{project.id}")
-    # 6. Await autopilot to finish
-    # project.open_in_browser()
-    project.wait_for_autopilot()
