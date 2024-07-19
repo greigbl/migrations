@@ -9,6 +9,8 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Any
 
 
+EXTENSION_REGEX = ".zip$|.geojson$"
+
 def _call_http(url: str, apikey: str, method: str = "GET", **kwargs) -> Response:
     if "headers" in kwargs:
         headers = kwargs["headers"] | {"Authorization": f"Bearer {apikey}"}
@@ -51,24 +53,26 @@ def _import(path: str, method: str = "GET", admin: bool = False, **kwargs) -> Re
     )
 
 
-def _convert_to_snake(dict_in):
+def _convert_dictkeys_to_snake(dict_in) -> dict["str",Any]:
     def replace(item):
         return re.sub(r"(?<!^)(?=[A-Z])", "_", item).lower()
 
     return {replace(k): v for (k, v) in dict_in.items()}
 
 
-def _download_dataset(catalog_id: str, fileName: str, DIR: str) -> dict[str, Any]:
+def _download_dataset(catalog_id: str, filename: str, DIR: str) -> dict[str, Any]:
     url = f"{os.environ.get('SOURCE_ENDPOINT')}/datasets/{catalog_id}/file/"
     headers = {"Authorization": f"Bearer {os.environ.get('SOURCE_API_TOKEN')}"}
+    # filename = filename if not filename.endswith('.zip') else filename.split('.zip')[0] + '.csv'
+    filename = filename if not re.search(EXTENSION_REGEX, filename) else re.split(EXTENSION_REGEX, filename)[0] + '.csv'
     complete = False
     with requests.get(url, headers=headers, stream=True) as response:
-        if response.headers["Content-Type"] == "text/csv; charset=utf-8":
-            with open(f"{DIR}/{fileName}", "wb") as f:
+        #if response.headers["Content-Type"] == "text/csv; charset=utf-8":
+            with open(f"{DIR}/{filename}", "wb") as f:
                 for chunk in response.iter_content(chunk_size=8192):
                     f.write(chunk)
                 complete = True
-    return {"catalogId": catalog_id, "name": f"{fileName}", "complete": complete}
+    return {"catalogId": catalog_id, "name": f"{filename}", "complete": complete}
 
 
 def download_datasets(
@@ -111,48 +115,54 @@ def upload_dataset(catalog_item, DIR: str):
     )
 
 
-def dataset_metadata(catalog):
+def dataset_metadata(catalog, env:str="SOURCE"):
     all_recs = []
     for c in catalog:
         if "catalogId" in c:
-            deets = _export(f"datasets/{c['catalogId']}/versions/?orderBy=created",env="TARGET")
+            deets = _export(f"datasets/{c['catalogId']}/versions/?orderBy=created", env=env)
             data = deets["data"][0]
+            # filename = data["name"] if not data["name"].endswith(".zip") else data["name"].split(".zip")[0] + ".csv"
+            filename = data["name"] if not re.search(EXTENSION_REGEX, data["name"]) else re.split(EXTENSION_REGEX, data["name"])[0] + '.csv'
             all_recs.append(
                 {
                     "catalogId": c["catalogId"],
-                    "name": data["name"],
-                    "datasetSize(MB)": int(data["datasetSize"] / 1_000_000),
+                    "name": filename,
+                    "datasetSize(MB)": int(data["datasetSize"] / 1_000_000),  #1024 **2 **2
                     "rowCount": data["rowCount"],
+                    "processingState": data["processingState"],
                     "categories": data["categories"],
                 }
             )
     return pd.DataFrame(all_recs)
 
 
-def export_projects() -> list[dict[str, Any]]:
+def export_projects(env:str = "SOURCE") -> list[dict[str, Any]]:
     # 1. Export projects and spit to json
     OFFSET = 0
     LIMIT = 20
     url = f"projects/?orderBy=-projectName&offset={OFFSET}&limit={LIMIT}"
     allprojects = []
     while url:
-        projects = _export(url)
+        projects = _export(url, env=env)
         if len(projects) == 0:
             url = None
         else:
+            for p in projects:
+                # p["fileName"] = re.sub(".zip$", ".csv", p["fileName"])
+                p["fileName"] = re.sub(".zip$|.geojson$", ".csv", p["fileName"])
             allprojects.extend(projects)
             OFFSET += LIMIT
             url = f"projects/?orderBy=-projectName&offset={OFFSET}&limit={LIMIT}"
     return allprojects
 
 
-def export_users() -> pd.DataFrame:
+def export_users(env:str="SOURCE") -> pd.DataFrame:
     orgid = os.environ.get("SOURCE_ORG_ID")
     url = f"organizations/{orgid}/users/?offset=0&limit=10"
     current_user = _current_user()["email"]
     allusers = []
     while url:
-        users = _export(url, admin=True)
+        users = _export(url, admin=True, env=env)
         if "message" in users:
             print("Message: ", users["message"])
         else:
@@ -187,6 +197,7 @@ def import_users(DIR: str, USER_EXPORT_FILE: str, PASSWORD: str) -> dict[str, An
     users = pd.read_csv(f"{DIR}/{USER_EXPORT_FILE}")
     for user in users.iterrows():
         user = user[1]
+        #user["language"] = "Japanese"
         # 1. Create user
         # TODO: accessRoleIds,
         # NOTE: language not possible

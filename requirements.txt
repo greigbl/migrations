@@ -1,6 +1,6 @@
 requests
 #httpx
-#python-dotenv
+python-dotenv
 pandas
 datarobot
 pandera
