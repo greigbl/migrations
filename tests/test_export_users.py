@@ -11,17 +11,13 @@ def test_user_schema():
     #3. Check response
     schema = DataFrameSchema(
         {
-             "username": Column(str),
+            "username": Column(str),
             "firstName": Column(str),#, Check(lambda s: s < -1.2)),
             "lastName": Column(str),
             "orgAdmin": Column(bool),
             "maxWorkers": Column(int),
             "activated": Column(bool),
-            "accessRoleIds": Column(nullable=True),
-           
-            #   []  Check(lambda s: s.str.startswith("value")),
-            #     Check(lambda s: s.str.split("_", expand=True).shape[1] == 2)
-            # ]),
+            "accessRoleIds": Column(nullable=True), 
         },
         index=Index(int),
         strict=True,
@@ -38,5 +34,5 @@ def test_user_schema():
                 "activated",
                 "accessRoleIds",
             ]
-        ]#.to_csv(f"{DIR}/{USER_EXPORT_FILE}", index=False)
+        ]
     schema.validate(usersdf)

@@ -1,6 +1,8 @@
 requests
-#httpx
 python-dotenv
 pandas
 datarobot
 pandera
+strictyaml
+
+ 
