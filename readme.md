@@ -1,6 +1,6 @@
 ### 共通
-1. DataRobot>WorkbenchにてUseCaseを作成
-2. DataRobot＞Workbenchにてコードスペースをアップロード
+1. DataRobot>ワークベンチにて「＋ユースケースを作成」
+2. DataRobot>ワークベンチ>追加にて「Codespaceをアップロード」
 3. ダイアログが表示されたらこちらのGithub URLをペースト: https://github.com/greigbl/migrations.git
 
 ### プロジェクト移行方法
