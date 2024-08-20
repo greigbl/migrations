@@ -3,6 +3,9 @@ __pycache__/
 *.py[cod]
 *$py.class
 
+# Project data
+migrations/*
+
 # C extensions
 *.so
 
@@ -126,6 +129,8 @@ celerybeat.pid
 .venv
 .env-admin
 .env-user
+user.yaml
+admin.yaml
 env/
 venv/
 ENV/
